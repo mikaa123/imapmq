@@ -73,5 +73,8 @@ func main() {
 }
 ~~~~
 
+## Documentation
+https://godoc.org/github.com/mikaa123/imapmq
+
 ## License
 MIT © Michael Sokol
