@@ -2,7 +2,7 @@
 
 IMAPMQ is an IMAP based **message broker client**. It provides a simple interface
 for publishing, subscribing and dequeuing messages. It also supports concurrent
-access to the same message queue.
+access to the same message queue. Based on [go-imap](https://github.com/mxk/go-imap).
 
 ## How it works
 IMAPMQ treats IMAP mailboxes as queues. In order to add a message to a queue,
@@ -16,6 +16,9 @@ IMAPMQ appends an email to the mailbox.
 - No polling, the IMAP server notifies the client of new messages thanks to the IDLE command
 - Concurrency aware: multiple dequeuing instances can work on the same queue
 - Bring your own GUI: any IMAP client would do
+
+## Installing
+`$ go get github.com/mikaa123/imapmq`
 
 ## Example: A simple chat
 The following example connects to an IMAP account, and creates a queue based on the INBOX mailbox.
