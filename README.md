@@ -4,6 +4,7 @@ IMAPMQ is an IMAP based **message broker client**. It provides a simple interfac
 for publishing, subscribing and dequeuing messages. It also supports concurrent
 access to the same message queue. Based on [go-imap](https://github.com/mxk/go-imap).
 
+[![Go Report Card](https://goreportcard.com/badge/github.com/mikaa123/imapmq)](https://goreportcard.com/report/github.com/mikaa123/imapmq) [![GoDoc](https://godoc.org/github.com/google/go-github/github?status.svg)](https://godoc.org/github.com/mikaa123/imapmq)  
 ## How it works
 IMAPMQ treats IMAP mailboxes as queues. In order to add a message to a queue,
 IMAPMQ appends an email to the mailbox.
