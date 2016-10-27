@@ -9,7 +9,7 @@ IMAPMQ treats IMAP mailboxes as queues. In order to add a message to a queue,
 IMAPMQ appends an email to the mailbox.
 
 **Features**
-- IMAPMQ can connect to any IMAPv4rev1 server with the CONDSTORE extension: simply create a GMail account
+- IMAPMQ can connect to any IMAPv4rev1 server with the CONDSTORE extension
 - Publish/Subscribe
 - Message Queue
 - Message format agnostic
@@ -22,9 +22,8 @@ The following example connects to an IMAP account, and creates a queue based on 
 It spawns a goroutine that subscribes to the "chat" topic and listens to the returned channel.
 Anytime a user writes something and press enter, a new "chat" message is published to the queue.
 
-_You need to have an IMAP server to connect to. If you don't, you can create a GMAIL account.
-Make sure you enable IMAP (more info here ()[https://support.google.com/mail/answer/7126229?hl=en]) if you do._
-
+_You need to have an IMAP server to connect to. If you don't, you can create a gmail account.
+Make sure you enable IMAP (more info [here](https://support.google.com/mail/answer/7126229?hl=en)) if you do._
 ~~~~go
 package main
 
