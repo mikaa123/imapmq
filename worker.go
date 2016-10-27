@@ -17,12 +17,14 @@ type job interface {
 	exec(*imap.Client)
 }
 
+// jobResult is used by the dequeueJob to report result asynchronously.
 type jobResult struct {
 	msg *Message
 	err error
 }
 
-// The dequeueJob represents a dequeue intent.
+// The dequeueJob represents a dequeue intent. The dequeue is done on a queue,
+// and the result is passed to the channel.
 type dequeueJob struct {
 	q *Queue
 	c chan *jobResult
@@ -47,6 +49,8 @@ func (j *dequeueJob) exec(c *imap.Client) {
 	j.c <- &jobResult{msg, err}
 }
 
+// Dequeues from a queue. It fetches the oldest email (sequence number 1).
+// Returns io.EOF when no message could be found.
 func dequeue(c *imap.Client, q *Queue) (*Message, error) {
 	mail, info, err := fetchMail(c, 1)
 	if err != nil {
@@ -66,6 +70,8 @@ func dequeue(c *imap.Client, q *Queue) (*Message, error) {
 	return (*Message)(mail), nil
 }
 
+// Marks a message for deletion.
+// It uses CONDSTORE's MODSEQ to prevent race conditions.
 func flagDelete(c *imap.Client, info *imap.MessageInfo) (*imap.Command, error) {
 	mseq := (info.Attrs["MODSEQ"]).([]imap.Field)[0]
 	suid, _ := imap.NewSeqSet(strconv.Itoa(int(info.UID)))
@@ -117,13 +123,16 @@ func (j *notifyJob) exec(c *imap.Client) {
 	}
 }
 
-// Fetches a mail requesting the correct headers, and returns a parsed `mail.Message`
-// instance along with metadata.
+// Fetches a mail requesting the correct IMAP headers, and returns a parsed
+// `mail.Message` instance along with metadata or io.EOF when no mail found.
 func fetchMail(c *imap.Client, seq int) (*mail.Message, *imap.MessageInfo, error) {
 	s, _ := imap.NewSeqSet(strconv.Itoa(seq))
 	cmd, err := imap.Wait(c.Fetch(s, "RFC822 UID MODSEQ"))
 	if err != nil {
 		return nil, nil, err
+	}
+	if len(cmd.Data) == 0 {
+		return nil, nil, io.EOF
 	}
 	d := cmd.Data[0]
 	m, err := getMail(d)
