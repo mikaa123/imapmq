@@ -43,13 +43,13 @@ func main() {
 	// Create a new IMAPMQ client
 	mq, err := imapmq.New(imapmq.Config{
 		Login: "login",
-		Pwd:   "password",
+		Passwd:   "password",
 		URL:   "imap.gmail.com",
 	})
 	if err != nil {
 		log.Panic(err)
 	}
-	defer mq.Logout()
+	defer mq.Close()
 
 	// Create a queue based on INBOX
 	q, err := mq.Queue("INBOX")

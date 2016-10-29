@@ -16,7 +16,7 @@ type Message mail.Message
 
 // Config holds configuration data to connect to the IMAP server.
 type Config struct {
-	Login, Pwd, URL string
+	Login, Passwd, URL string
 }
 
 // IMAPMQ is an imapmq broker client. It manages queues and coordinate low-level
@@ -51,8 +51,8 @@ func (mq *IMAPMQ) Queue(mailbox string) (*Queue, error) {
 	return q, observer(mq, q)
 }
 
-// Logout disconnects the IMAPMQ client and releases its worker and observers.
-func (mq *IMAPMQ) Logout() {
+// Close disconnects the IMAPMQ client and releases its worker and observers.
+func (mq *IMAPMQ) Close() {
 	close(mq.done)
 }
 
@@ -156,7 +156,7 @@ func newIMAPClient(cfg Config) (*imap.Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	_, err = c.Login(cfg.Login, cfg.Pwd)
+	_, err = c.Login(cfg.Login, cfg.Passwd)
 	if err != nil {
 		return nil, err
 	}
