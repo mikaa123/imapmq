@@ -43,8 +43,8 @@ func main() {
 	// Create a new IMAPMQ client
 	mq, err := imapmq.New(imapmq.Config{
 		Login: "login",
-		Passwd:   "password",
-		URL:   "imap.gmail.com",
+		Passwd: "password",
+		URL: "imap.gmail.com",
 	})
 	if err != nil {
 		log.Panic(err)
