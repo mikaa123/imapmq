@@ -26,6 +26,7 @@ type IMAPMQ struct {
 	jobs   chan<- job
 	cfg    Config
 	done   chan interface{}
+	errs   chan error // Any error will be sent there.
 }
 
 // New creates a IMAPMQ instance. It initializes the instance's worker.
@@ -36,7 +37,8 @@ func New(cfg Config) (*IMAPMQ, error) {
 		return nil, err
 	}
 	queues := make(map[string]*Queue)
-	mq := &IMAPMQ{queues, jobs, cfg, done}
+	errs := make(chan error)
+	mq := &IMAPMQ{queues, jobs, cfg, done, errs}
 	return mq, nil
 }
 
@@ -46,9 +48,23 @@ func (mq *IMAPMQ) Queue(mailbox string) (*Queue, error) {
 		return q, nil
 	}
 	subs := make(map[string]chan *Message)
-	q := &Queue{mailbox, subs, mq.jobs, mq.done}
+	q := &Queue{mailbox, subs, mq}
 	mq.queues[mailbox] = q
-	return q, observer(mq, q)
+	return q, observer(q)
+}
+
+// Errs return the error channel. Any asynchronous task will send an error down
+// this channel.
+func (mq *IMAPMQ) Errs() <-chan error {
+	return mq.errs
+}
+
+// Sends an error to the errs channel, without blocking.
+func (mq *IMAPMQ) handleErr(err error) {
+	select {
+	case mq.errs <- err:
+	default:
+	}
 }
 
 // Close disconnects the IMAPMQ client and releases its worker and observers.
@@ -61,8 +77,7 @@ func (mq *IMAPMQ) Close() {
 type Queue struct {
 	name string
 	subs map[string]chan *Message
-	jobs chan<- job
-	done chan interface{}
+	mq   *IMAPMQ
 }
 
 // Pub publishes the `Message` to the queue. It appends a new email in the
@@ -70,10 +85,10 @@ type Queue struct {
 func (q *Queue) Pub(subject string, body []byte) {
 	mail := []byte(fmt.Sprintf("Subject: %s\n\n%s\n", subject, body))
 	l := imap.NewLiteral(mail)
-	if q.jobs == nil {
+	if q.mq.jobs == nil {
 		log.Panic("jobs queue is nil")
 	}
-	q.jobs <- &publishJob{q, l}
+	q.mq.jobs <- &publishJob{q, l}
 }
 
 // Sub adds a subscription to a subject on the queue. Use "*" to receive every
@@ -91,7 +106,7 @@ func (q *Queue) Sub(s string) <-chan *Message {
 // messages are available, it returnes io.EOF.
 func (q *Queue) Dequeue() (*Message, error) {
 	c := make(chan *jobResult)
-	q.jobs <- &dequeueJob{q, c}
+	q.mq.jobs <- &dequeueJob{q, c}
 	res := <-c
 	close(c)
 	return res.msg, res.err
@@ -112,8 +127,8 @@ func (q *Queue) switchTo(c *imap.Client) error {
 
 // Each queue spawns an observer. The observer listens to IMAP notifications
 // (IDLE command) and notifies the subscribers by adding a new job to the worker.
-func observer(mq *IMAPMQ, q *Queue) error {
-	c, err := newIMAPClient(mq.cfg)
+func observer(q *Queue) error {
+	c, err := newIMAPClient(q.mq.cfg)
 	if err != nil {
 		return err
 	}
@@ -123,7 +138,7 @@ func observer(mq *IMAPMQ, q *Queue) error {
 	}
 	cmd, err := c.Idle()
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	go func() {
 		for cmd.InProgress() {
@@ -131,14 +146,19 @@ func observer(mq *IMAPMQ, q *Queue) error {
 			c.Recv(200 * time.Millisecond)
 			if len(c.Data) != 0 && c.Data[0].Label == "EXISTS" {
 				rsp := c.Data[0]
-				select {
-				case mq.jobs <- &notifyJob{q, rsp.Fields[0].(uint32)}:
-				default:
+				if q.mq.jobs != nil {
+					select {
+					case q.mq.jobs <- &notifyJob{q, rsp.Fields[0].(uint32)}:
+					case <-q.mq.done:
+						c.IdleTerm()
+						break
+					}
 				}
 			}
 			select {
-			case <-mq.done:
+			case <-q.mq.done:
 				c.IdleTerm()
+				break
 			default:
 			}
 		}

@@ -2,15 +2,19 @@ package imapmq
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/mail"
 	"strconv"
 	"time"
 
 	"github.com/mxk/go-imap/imap"
 )
+
+// ErrParseMail is returned when the mail returned by IMAP server couldn't be
+// parsed correctly.
+var ErrParseMail = errors.New("mail parse error")
 
 // The job interface defines the `exec` method which is implemented by all jobs.
 type job interface {
@@ -89,12 +93,12 @@ type publishJob struct {
 func (j *publishJob) exec(c *imap.Client) {
 	err := j.q.switchTo(c)
 	if err != nil {
-		log.Print(err)
+		j.q.mq.handleErr(err)
 		return
 	}
 	_, err = imap.Wait(c.Append(j.q.name, nil, nil, j.literal))
 	if err != nil {
-		log.Print(err)
+		j.q.mq.handleErr(err)
 		return
 	}
 }
@@ -111,19 +115,17 @@ type notifyJob struct {
 func (j *notifyJob) exec(c *imap.Client) {
 	err := j.q.switchTo(c)
 	if err != nil {
-		log.Print(err)
+		j.q.mq.handleErr(err)
 		return
 	}
 	mail, _, err := fetchMail(c, int(j.msgID))
 	if err != nil {
-		log.Println(err)
+		j.q.mq.handleErr(err)
 		return
 	}
-	if j.q.subs["*"] != nil {
-		select {
-		case j.q.subs["*"] <- (*Message)(mail):
-		default:
-		}
+	select {
+	case j.q.subs["*"] <- (*Message)(mail):
+	default:
 	}
 	t := mail.Header.Get("Subject")
 	select {
@@ -154,15 +156,15 @@ func fetchMail(c *imap.Client, seq int) (*mail.Message, *imap.MessageInfo, error
 // getMail builds a `mail.Message` from the response.
 func getMail(rsp *imap.Response) (*mail.Message, error) {
 	if rsp == nil {
-		return nil, fmt.Errorf("parse error")
+		return nil, ErrParseMail
 	}
 	msgInfo := rsp.MessageInfo()
 	if msgInfo == nil {
-		return nil, fmt.Errorf("parse error")
+		return nil, ErrParseMail
 	}
 	msgField := msgInfo.Attrs["RFC822"]
 	if msgField == nil {
-		return nil, fmt.Errorf("parse error")
+		return nil, ErrParseMail
 	}
 	mailBytes := imap.AsBytes(msgField)
 	return mail.ReadMessage(bytes.NewReader(mailBytes))
