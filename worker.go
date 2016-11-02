@@ -105,6 +105,9 @@ type notifyJob struct {
 	msgID uint32
 }
 
+// Fetches the new message and notifies subscribers that subscribed to the
+// message's subject. Any subscriber that subscribed to "*" will receieve all
+// messages from the queue.
 func (j *notifyJob) exec(c *imap.Client) {
 	err := j.q.switchTo(c)
 	if err != nil {
@@ -115,6 +118,12 @@ func (j *notifyJob) exec(c *imap.Client) {
 	if err != nil {
 		log.Println(err)
 		return
+	}
+	if j.q.subs["*"] != nil {
+		select {
+		case j.q.subs["*"] <- (*Message)(mail):
+		default:
+		}
 	}
 	t := mail.Header.Get("Subject")
 	select {

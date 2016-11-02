@@ -65,21 +65,19 @@ type Queue struct {
 	done chan interface{}
 }
 
-// Pub publishes the `Message` for the queue. It appends a new email in the
+// Pub publishes the `Message` to the queue. It appends a new email in the
 // queue's mailbox by using the provided subject and body.
-func (q *Queue) Pub(subject string, body []byte) error {
+func (q *Queue) Pub(subject string, body []byte) {
 	mail := []byte(fmt.Sprintf("Subject: %s\n\n%s\n", subject, body))
 	l := imap.NewLiteral(mail)
-	select {
-	case q.jobs <- &publishJob{q, l}:
-	default:
-		log.Panic("worker not ready")
+	if q.jobs == nil {
+		log.Panic("jobs queue is nil")
 	}
-	return nil
+	q.jobs <- &publishJob{q, l}
 }
 
-// Sub adds a subscription to a subject on the queue. Use the returned channel
-// to receive messages.
+// Sub adds a subscription to a subject on the queue. Use "*" to receive every
+// new message from the queue. Returns a channel where the messages will be passed.
 func (q *Queue) Sub(s string) <-chan *Message {
 	if sub := q.subs[s]; sub != nil {
 		return sub
@@ -101,11 +99,10 @@ func (q *Queue) Dequeue() (*Message, error) {
 
 // Selects the queue's mailbox
 func (q *Queue) switchTo(c *imap.Client) error {
-	if c.Mailbox != nil && c.Mailbox.Name == q.name {
-		return nil
-	}
-	if _, err := c.Select(q.name, false); err != nil {
-		return err
+	if c.Mailbox == nil || (c.Mailbox != nil && c.Mailbox.Name != q.name) {
+		if _, err := c.Select(q.name, false); err != nil {
+			return err
+		}
 	}
 	if _, err := imap.Wait(c.Check()); err != nil {
 		return err
@@ -120,7 +117,7 @@ func observer(mq *IMAPMQ, q *Queue) error {
 	if err != nil {
 		return err
 	}
-	err = q.switchTo(c)
+	_, err = c.Select(q.name, false)
 	if err != nil {
 		return err
 	}
