@@ -37,7 +37,7 @@ type dequeueJob struct {
 // Dequeuing use the Conditional Store IMAP extension (RFC4551) the prevent
 // race conditions when multiple clients dequeue concurrently.
 func (j *dequeueJob) exec(c *imap.Client) {
-	err := j.q.switchTo(c)
+	err := j.q.switchTo(c, true)
 	if err != nil {
 		j.c <- &jobResult{nil, err}
 		return
@@ -91,7 +91,7 @@ type publishJob struct {
 }
 
 func (j *publishJob) exec(c *imap.Client) {
-	err := j.q.switchTo(c)
+	err := j.q.switchTo(c, false)
 	if err != nil {
 		j.q.mq.handleErr(err)
 		return
@@ -113,7 +113,7 @@ type notifyJob struct {
 // message's subject. Any subscriber that subscribed to "*" will receieve all
 // messages from the queue.
 func (j *notifyJob) exec(c *imap.Client) {
-	err := j.q.switchTo(c)
+	err := j.q.switchTo(c, true)
 	if err != nil {
 		j.q.mq.handleErr(err)
 		return

@@ -112,12 +112,15 @@ func (q *Queue) Dequeue() (*Message, error) {
 	return res.msg, res.err
 }
 
-// Selects the queue's mailbox
-func (q *Queue) switchTo(c *imap.Client) error {
+// Selects the queue's mailbox and refreshes it if `check` is true.
+func (q *Queue) switchTo(c *imap.Client, check bool) error {
 	if c.Mailbox == nil || (c.Mailbox != nil && c.Mailbox.Name != q.name) {
 		if _, err := c.Select(q.name, false); err != nil {
 			return err
 		}
+	}
+	if !check {
+		return nil
 	}
 	if _, err := imap.Wait(c.Check()); err != nil {
 		return err
