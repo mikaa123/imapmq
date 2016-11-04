@@ -2,8 +2,10 @@
 package imapmq
 
 import (
+	"crypto/tls"
 	"fmt"
 	"log"
+	"net"
 	"net/mail"
 	"time"
 
@@ -170,9 +172,29 @@ func observer(q *Queue) error {
 	return nil
 }
 
+// dialTLS connects to the imap server using TLS. It is based on imap.DialTLS
+// with the difference that here, we set keep-alive on the tcp socket to make
+// sure it doesn't won't break whem the client is IDLE.
+func dialTLS(addr string) (c *imap.Client, err error) {
+	addr = net.JoinHostPort(addr, "993")
+	conn, err := net.DialTimeout("tcp", addr, 30*time.Second)
+	if tcpConn, ok := conn.(*net.TCPConn); ok {
+		tcpConn.SetKeepAlive(true)
+		tcpConn.SetKeepAlivePeriod(30 * time.Second)
+	}
+	if err == nil {
+		host, _, _ := net.SplitHostPort(addr)
+		tlsConn := tls.Client(conn, &tls.Config{ServerName: host})
+		if c, err = imap.NewClient(tlsConn, host, 60*time.Second); err != nil {
+			conn.Close()
+		}
+	}
+	return
+}
+
 // Creates a new logged-in IMAP client.
 func newIMAPClient(cfg Config) (*imap.Client, error) {
-	c, err := imap.DialTLS(cfg.URL, nil)
+	c, err := dialTLS(cfg.URL)
 	if err != nil {
 		return nil, err
 	}
